@@ -1,0 +1,26 @@
+Adafruit CircuitPython LT8912B driver
+Copyright (c) 2026 Adafruit Industries
+
+This library adapts LT8912B initialization and register programming from
+Espressif's esp_lcd_lt8912b component in esp-bsp:
+https://github.com/espressif/esp-bsp/tree/master/components/lcd/esp_lcd_lt8912b
+
+and from Adafruit's Arduino driver:
+https://github.com/adafruit/Adafruit_LT8912B
+
+The source files used carry these notices:
+  esp_lcd_lt8912b.c:
+    SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
+  esp_lcd_lt8912b.h:
+    SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
+  Adafruit_LT8912B:
+    SPDX-FileCopyrightText: 2026 Adafruit Industries
+  SPDX-License-Identifier: Apache-2.0
+
+The register initialization tables in adafruit_lt8912b.py are derived from
+that code and remain subject to the Apache License, Version 2.0, included in
+LICENSES/Apache-2.0.txt. The Python interface and EDID decoder are original
+Adafruit code under the MIT license in LICENSE.
+
+This attribution notice was added by Adafruit for this port; it is not a
+NOTICE file supplied by Espressif. Dependencies retain their own licenses.
