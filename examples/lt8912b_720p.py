@@ -33,12 +33,6 @@ displayio.release_displays()
 # Set this to the bridge's reset pin, or None if it is not connected.
 RESET_PIN = getattr(board, "DSI_RESET", None)
 
-# 960 Mbps makes the DSI byte clock exactly 1.5x the pixel clock, so the
-# stream is continuous and the bridge's FIFO loop has nothing to chase. This
-# is the vendor's 720p configuration.
-LANE_BIT_RATE = 960_000_000
-NUM_LANES = 2
-
 # LT8912B vendor 1280x720 preset: 80 MHz, 1800x741 totals, 59.98 Hz.
 WIDTH = 1280
 HEIGHT = 720
@@ -55,17 +49,21 @@ ASPECT_RATIO = 2  # 16:9
 H_TOTAL = WIDTH + HSYNC_FRONT_PORCH + HSYNC_PULSE_WIDTH + HSYNC_BACK_PORCH
 V_TOTAL = HEIGHT + VSYNC_FRONT_PORCH + VSYNC_PULSE_WIDTH + VSYNC_BACK_PORCH
 
-print("Required lane rate:", PIXEL_CLOCK_FREQUENCY * 24 // NUM_LANES, "bps per lane")
-print("Lane rate:", LANE_BIT_RATE // 1_000_000, "Mbps per lane")
+# Run two DSI lanes at no less than the rate RGB888 needs. The bus picks a
+# PHY rate close to that minimum.
+NUM_LANES = 2
+MINIMUM_LANE_BIT_RATE = PIXEL_CLOCK_FREQUENCY * 24 // NUM_LANES
+
 print("Line rate:", PIXEL_CLOCK_FREQUENCY // H_TOTAL, "Hz")
 print("Refresh rate:", PIXEL_CLOCK_FREQUENCY // (H_TOTAL * V_TOTAL), "Hz")
 
 i2c = busio.I2C(board.SCL, board.SDA)
 
-# Create the DSI bus first so its PHY is powered while the bridge is programmed.
-dsi_bus = mipidsi.Bus(frequency=LANE_BIT_RATE, num_lanes=NUM_LANES)
+bus = mipidsi.Bus(minimum_frequency=MINIMUM_LANE_BIT_RATE, num_lanes=NUM_LANES)
 
+# The bridge configures itself, then starts DSI video.
 bridge = adafruit_lt8912b.LT8912B(
+    bus,
     i2c,
     reset=RESET_PIN,
     width=WIDTH,
@@ -81,31 +79,9 @@ bridge = adafruit_lt8912b.LT8912B(
     vsync_positive=True,
     vic=VIC,
     aspect_ratio=ASPECT_RATIO,
-    lanes=NUM_LANES,
 )
 
-# An empty init sequence is correct: the LT8912B is a bridge, not a DSI panel.
-# Display's constructor starts DPI scanout once the bridge is configured.
-panel = mipidsi.Display(
-    dsi_bus,
-    b"",
-    width=WIDTH,
-    height=HEIGHT,
-    hsync_pulse_width=HSYNC_PULSE_WIDTH,
-    hsync_back_porch=HSYNC_BACK_PORCH,
-    hsync_front_porch=HSYNC_FRONT_PORCH,
-    vsync_pulse_width=VSYNC_PULSE_WIDTH,
-    vsync_back_porch=VSYNC_BACK_PORCH,
-    vsync_front_porch=VSYNC_FRONT_PORCH,
-    pixel_clock_frequency=PIXEL_CLOCK_FREQUENCY,
-    color_depth=24,
-)
-
-display = framebufferio.FramebufferDisplay(panel, auto_refresh=True)
-
-# Scanout is live now, so start the bridge's output clock loop at the real
-# pixel clock instead of the vendor table's 29 MHz default.
-bridge.seed_output_clock()
+display = framebufferio.FramebufferDisplay(bridge, auto_refresh=True)
 
 # Draw eight vertical color bars on the HDMI/DVI output.
 palette = displayio.Palette(8)
@@ -123,15 +99,15 @@ for index, color in enumerate(colors):
     palette[index] = color
 
 group = displayio.Group()
-bar_width = panel.width // len(colors)
+bar_width = bridge.width // len(colors)
 for index in range(len(colors)):
     left = index * bar_width
-    right = (index + 1) * bar_width if index < len(colors) - 1 else panel.width
+    right = (index + 1) * bar_width if index < len(colors) - 1 else bridge.width
     group.append(
         vectorio.Rectangle(
             pixel_shader=palette,
             width=right - left,
-            height=panel.height,
+            height=bridge.height,
             x=left,
             y=0,
             color_index=index,
@@ -139,15 +115,7 @@ for index in range(len(colors)):
     )
 display.root_group = group
 
-# get_input_timing() reports the H/V period the receiver measures and
-# get_hpd() the monitor's hot-plug state, which are the two quickest ways to
-# tell a DSI problem from an HDMI one.
-print(
-    "720p60 color bars displayed. MIPI input:",
-    bridge.get_input_timing(),
-    "HPD:",
-    bridge.get_hpd(),
-)
+print("720p60 color bars displayed. HDMI cable connected:", bridge.hot_plug_detected)
 
 while True:
     time.sleep(1)

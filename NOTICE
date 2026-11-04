@@ -19,8 +19,8 @@ The source files used carry these notices:
 
 The register initialization tables in adafruit_lt8912b.py are derived from
 that code and remain subject to the Apache License, Version 2.0, included in
-LICENSES/Apache-2.0.txt. The Python interface and EDID decoder are original
-Adafruit code under the MIT license in LICENSE.
+LICENSES/Apache-2.0.txt. The Python interface is original Adafruit code under
+the MIT license in LICENSE.
 
 This attribution notice was added by Adafruit for this port; it is not a
 NOTICE file supplied by Espressif. Dependencies retain their own licenses.

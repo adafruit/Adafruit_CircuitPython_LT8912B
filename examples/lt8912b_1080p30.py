@@ -2,17 +2,16 @@
 #
 # SPDX-License-Identifier: Unlicense
 
-"""Standard 1080p30 output on the LT8912B bridge.
+"""1080p30 output on the LT8912B bridge.
 
-Connect the bridge's I2C control pins to the board's default SCL/SDA. This uses
-CEA-861 VIC 34 exactly: 1920x1080 at 30 Hz with a 74.25 MHz pixel clock, 2200
-by 1125 totals, 33.75 kHz per line. 74.25 MHz is not a division of the ESP32-P4
-port's fixed 240 MHz DPI source, so ``mipidsi`` programs the audio PLL to 74.25
-MHz instead; the constructor prints ``mipidsi: APLL 74 MHz / 1`` when it does.
+Connect the bridge's I2C control pins to the board's default SCL/SDA. CEA-861
+1080p30 uses a 74.25 MHz pixel clock, but the ESP32-P4 DSI host can only make
+pixel clocks that divide 240 or 160 MHz. This uses 80 MHz (240/3) and moves the
+extra pixels into the horizontal back porch: 2370 by 1125 totals scan at 30.00
+Hz and 33.76 kHz per line, matching CEA 1080p30's rates.
 
-With two DSI lanes and RGB888, 74.25 MHz needs about 891 Mbps per lane, within
-the ESP32-P4's 1.5 Gbps per-lane limit. 1080p60 needs 148.5 MHz, which is above
-the APLL's 125 MHz ceiling, so it is not available.
+With two DSI lanes and RGB888, 80 MHz needs 960 Mbps per lane, within the
+ESP32-P4's 1.5 Gbps per-lane limit.
 
 See ``lt8912b_720p.py`` for the 720p60 alternative.
 """
@@ -33,37 +32,37 @@ displayio.release_displays()
 # Set this to the bridge's reset pin, or None if it is not connected.
 RESET_PIN = getattr(board, "DSI_RESET", None)
 
-# 891 Mbps per lane is exactly what RGB888 at 74.25 MHz needs over two lanes,
-# so the stream is continuous (byte clock = 1.5x pixel clock).
-LANE_BIT_RATE = 891_000_000
-NUM_LANES = 2
-
-# CEA-861 VIC 34: 1920x1080p30.
+# CEA-861 1080p30 with 170 extra pixels in the horizontal back porch.
 WIDTH = 1920
 HEIGHT = 1080
 HSYNC_PULSE_WIDTH = 44
-HSYNC_BACK_PORCH = 148
+HSYNC_BACK_PORCH = 318
 HSYNC_FRONT_PORCH = 88
 VSYNC_PULSE_WIDTH = 5
 VSYNC_BACK_PORCH = 36
 VSYNC_FRONT_PORCH = 4
-PIXEL_CLOCK_FREQUENCY = 74_250_000
-VIC = 34
+PIXEL_CLOCK_FREQUENCY = 80_000_000
+VIC = 0  # Custom timing: the totals differ from CEA-861 VIC 34.
 ASPECT_RATIO = 2  # 16:9
 
 H_TOTAL = WIDTH + HSYNC_FRONT_PORCH + HSYNC_PULSE_WIDTH + HSYNC_BACK_PORCH
 V_TOTAL = HEIGHT + VSYNC_FRONT_PORCH + VSYNC_PULSE_WIDTH + VSYNC_BACK_PORCH
 
-print("Required lane rate:", PIXEL_CLOCK_FREQUENCY * 24 // NUM_LANES, "bps per lane")
+# Run two DSI lanes at no less than the rate RGB888 needs. The bus picks a
+# PHY rate close to that minimum.
+NUM_LANES = 2
+MINIMUM_LANE_BIT_RATE = PIXEL_CLOCK_FREQUENCY * 24 // NUM_LANES
+
 print("Line rate:", PIXEL_CLOCK_FREQUENCY // H_TOTAL, "Hz")
 print("Refresh rate:", PIXEL_CLOCK_FREQUENCY // (H_TOTAL * V_TOTAL), "Hz")
 
 i2c = busio.I2C(board.SCL, board.SDA)
 
-# Create the DSI bus first so its PHY is powered while the bridge is programmed.
-dsi_bus = mipidsi.Bus(frequency=LANE_BIT_RATE, num_lanes=NUM_LANES)
+bus = mipidsi.Bus(minimum_frequency=MINIMUM_LANE_BIT_RATE, num_lanes=NUM_LANES)
 
+# The bridge configures itself, then starts DSI video.
 bridge = adafruit_lt8912b.LT8912B(
+    bus,
     i2c,
     reset=RESET_PIN,
     width=WIDTH,
@@ -79,31 +78,9 @@ bridge = adafruit_lt8912b.LT8912B(
     vsync_positive=True,
     vic=VIC,
     aspect_ratio=ASPECT_RATIO,
-    lanes=NUM_LANES,
 )
 
-# An empty init sequence is correct: the LT8912B is a bridge, not a DSI panel.
-# Display's constructor starts DPI scanout once the bridge is configured.
-panel = mipidsi.Display(
-    dsi_bus,
-    b"",
-    width=WIDTH,
-    height=HEIGHT,
-    hsync_pulse_width=HSYNC_PULSE_WIDTH,
-    hsync_back_porch=HSYNC_BACK_PORCH,
-    hsync_front_porch=HSYNC_FRONT_PORCH,
-    vsync_pulse_width=VSYNC_PULSE_WIDTH,
-    vsync_back_porch=VSYNC_BACK_PORCH,
-    vsync_front_porch=VSYNC_FRONT_PORCH,
-    pixel_clock_frequency=PIXEL_CLOCK_FREQUENCY,
-    color_depth=24,
-)
-
-display = framebufferio.FramebufferDisplay(panel, auto_refresh=True)
-
-# Scanout is live now, so start the bridge's output clock loop at the
-# configured pixel clock instead of the vendor table's 29 MHz default.
-bridge.seed_output_clock()
+display = framebufferio.FramebufferDisplay(bridge, auto_refresh=True)
 
 # Draw eight vertical color bars on the HDMI/DVI output.
 palette = displayio.Palette(8)
@@ -121,15 +98,15 @@ for index, color in enumerate(colors):
     palette[index] = color
 
 group = displayio.Group()
-bar_width = panel.width // len(colors)
+bar_width = bridge.width // len(colors)
 for index in range(len(colors)):
     left = index * bar_width
-    right = (index + 1) * bar_width if index < len(colors) - 1 else panel.width
+    right = (index + 1) * bar_width if index < len(colors) - 1 else bridge.width
     group.append(
         vectorio.Rectangle(
             pixel_shader=palette,
             width=right - left,
-            height=panel.height,
+            height=bridge.height,
             x=left,
             y=0,
             color_index=index,
@@ -137,7 +114,7 @@ for index in range(len(colors)):
     )
 display.root_group = group
 
-print("1080p30 color bars displayed. HDMI cable connected:", bridge.get_hpd())
+print("1080p30 color bars displayed. HDMI cable connected:", bridge.hot_plug_detected)
 
 while True:
     time.sleep(1)

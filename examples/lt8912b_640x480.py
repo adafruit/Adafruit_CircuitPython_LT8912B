@@ -11,10 +11,6 @@ example targets the VESA DMT 640x480 mode, but the ESP32-P4 cannot produce its
 many monitors reject). 26.667 MHz is 240/9 exactly, so the surplus pixels go
 into the vertical back porch instead: 800x556 keeps DMT's horizontal timing
 and totals, and scans at 59.95 Hz.
-
-If the image shears partway down the frame, the bridge's output clock is
-slightly off the DSI input rate; ``bridge.seed_output_clock(hold=True)`` pins
-it at 26.667 MHz instead of tracking the stream.
 """
 
 import time
@@ -32,12 +28,6 @@ displayio.release_displays()
 
 # Set this to the bridge's reset pin, or None if it is not connected.
 RESET_PIN = getattr(board, "DSI_RESET", None)
-
-# 320 Mbps per lane is exactly what RGB888 at 26.667 MHz needs over two
-# lanes, so the stream is continuous (byte clock = 1.5x pixel clock) and the
-# link runs as slowly as it can.
-LANE_BIT_RATE = 320_000_000
-NUM_LANES = 2
 
 # 640x480 at ~60 Hz with DMT's horizontal timing. The vertical back porch
 # absorbs the 31 extra lines needed to keep the refresh rate at the 26.667 MHz
@@ -57,16 +47,22 @@ ASPECT_RATIO = 1  # 4:3
 H_TOTAL = WIDTH + HSYNC_FRONT_PORCH + HSYNC_PULSE_WIDTH + HSYNC_BACK_PORCH
 V_TOTAL = HEIGHT + VSYNC_FRONT_PORCH + VSYNC_PULSE_WIDTH + VSYNC_BACK_PORCH
 
-print("Required lane rate:", PIXEL_CLOCK_FREQUENCY * 24 // NUM_LANES, "bps per lane")
+# Run two DSI lanes at no less than the rate RGB888 needs. The bus picks a
+# PHY rate close to that minimum.
+NUM_LANES = 2
+MINIMUM_LANE_BIT_RATE = PIXEL_CLOCK_FREQUENCY * 24 // NUM_LANES
+
 print("Line rate:", PIXEL_CLOCK_FREQUENCY // H_TOTAL, "Hz")
 print("Refresh rate:", PIXEL_CLOCK_FREQUENCY // (H_TOTAL * V_TOTAL), "Hz")
 
 i2c = busio.I2C(board.SCL, board.SDA)
 
-# Create the DSI bus first so its PHY is powered while the bridge is programmed.
-dsi_bus = mipidsi.Bus(frequency=LANE_BIT_RATE, num_lanes=NUM_LANES)
+bus = mipidsi.Bus(minimum_frequency=MINIMUM_LANE_BIT_RATE, num_lanes=NUM_LANES)
+print("DSI lane rate:", bus.frequency // 1_000_000, "Mbps")
 
+# The bridge configures itself, then starts DSI video.
 bridge = adafruit_lt8912b.LT8912B(
+    bus,
     i2c,
     reset=RESET_PIN,
     width=WIDTH,
@@ -82,31 +78,9 @@ bridge = adafruit_lt8912b.LT8912B(
     vsync_positive=False,
     vic=VIC,
     aspect_ratio=ASPECT_RATIO,
-    lanes=NUM_LANES,
 )
 
-# An empty init sequence is correct: the LT8912B is a bridge, not a DSI panel.
-# Display's constructor starts DPI scanout once the bridge is configured.
-panel = mipidsi.Display(
-    dsi_bus,
-    b"",
-    width=WIDTH,
-    height=HEIGHT,
-    hsync_pulse_width=HSYNC_PULSE_WIDTH,
-    hsync_back_porch=HSYNC_BACK_PORCH,
-    hsync_front_porch=HSYNC_FRONT_PORCH,
-    vsync_pulse_width=VSYNC_PULSE_WIDTH,
-    vsync_back_porch=VSYNC_BACK_PORCH,
-    vsync_front_porch=VSYNC_FRONT_PORCH,
-    pixel_clock_frequency=PIXEL_CLOCK_FREQUENCY,
-    color_depth=24,
-)
-
-display = framebufferio.FramebufferDisplay(panel, auto_refresh=True)
-
-# Scanout is live now, so start the bridge's output clock loop at the
-# configured pixel clock instead of the vendor table's 29 MHz default.
-bridge.seed_output_clock()
+display = framebufferio.FramebufferDisplay(bridge, auto_refresh=True)
 
 # Draw eight vertical color bars on the HDMI/DVI output.
 palette = displayio.Palette(8)
@@ -124,15 +98,15 @@ for index, color in enumerate(colors):
     palette[index] = color
 
 group = displayio.Group()
-bar_width = panel.width // len(colors)
+bar_width = bridge.width // len(colors)
 for index in range(len(colors)):
     left = index * bar_width
-    right = (index + 1) * bar_width if index < len(colors) - 1 else panel.width
+    right = (index + 1) * bar_width if index < len(colors) - 1 else bridge.width
     group.append(
         vectorio.Rectangle(
             pixel_shader=palette,
             width=right - left,
-            height=panel.height,
+            height=bridge.height,
             x=left,
             y=0,
             color_index=index,
@@ -140,7 +114,7 @@ for index in range(len(colors)):
     )
 display.root_group = group
 
-print("640x480 color bars displayed. HDMI cable connected:", bridge.get_hpd())
+print("640x480 color bars displayed. HDMI cable connected:", bridge.hot_plug_detected)
 
 while True:
     time.sleep(1)
