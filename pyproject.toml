@@ -33,7 +33,7 @@ keywords = [
     "bridge",
     "display",
 ]
-license = "MIT"
+license = "Apache-2.0"
 classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries",

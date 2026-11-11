@@ -43,17 +43,12 @@ or individual libraries can be installed using
 `circup <https://github.com/adafruit/circup>`_.
 
 
-
 This driver works with Adafruit's LT8912B MIPI DSI to HDMI/DVI adapter.
 
 `Purchase one from the Adafruit shop <https://www.adafruit.com/>`_
 
 Installing from PyPI
 =====================
-.. note:: This library is not available on PyPI yet. Install documentation is included
-   as a standard element. Stay tuned for PyPI availability!
-
-.. todo:: Remove the above note if PyPI version is/will be available at time of release.
 
 On supported GNU/Linux systems like the Raspberry Pi, you can install the driver locally `from
 PyPI <https://pypi.org/project/adafruit-circuitpython-lt8912b/>`_.
@@ -173,8 +168,8 @@ Credits and License
 The register initialization tables are adapted from `Espressif's
 esp_lcd_lt8912b driver <https://github.com/espressif/esp-bsp/tree/master/components/lcd/esp_lcd_lt8912b>`_
 and Adafruit's `Arduino LT8912B library <https://github.com/adafruit/Adafruit_LT8912B>`_.
-Those portions remain under the Apache License, Version 2.0. See `NOTICE` and
-`LICENSES/Apache-2.0.txt`. The Python interface is MIT licensed. Dependencies
+Those portions remain under the Apache License, Version 2.0. See `NOTICE <https://github.com/adafruit/Adafruit_CircuitPython_LT8912B/blob/main/NOTICE>`_ and
+`LICENSES/Apache-2.0.txt <https://github.com/adafruit/Adafruit_CircuitPython_LT8912B/blob/main/LICENSES/Apache-2.0.txt>`_. The Python interface is MIT licensed. Dependencies
 retain their own licenses.
 
 Contributing
