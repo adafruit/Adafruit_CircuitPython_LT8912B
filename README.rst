@@ -43,17 +43,12 @@ or individual libraries can be installed using
 `circup <https://github.com/adafruit/circup>`_.
 
 
-
 This driver works with Adafruit's LT8912B MIPI DSI to HDMI/DVI adapter.
 
 `Purchase one from the Adafruit shop <https://www.adafruit.com/>`_
 
 Installing from PyPI
 =====================
-.. note:: This library is not available on PyPI yet. Install documentation is included
-   as a standard element. Stay tuned for PyPI availability!
-
-.. todo:: Remove the above note if PyPI version is/will be available at time of release.
 
 On supported GNU/Linux systems like the Raspberry Pi, you can install the driver locally `from
 PyPI <https://pypi.org/project/adafruit-circuitpython-lt8912b/>`_.

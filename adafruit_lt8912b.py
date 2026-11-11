@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-FileCopyrightText: 2026 Adafruit Industries
 #
-# SPDX-License-Identifier: MIT AND Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 # Register initialization tables are adapted from Espressif's
 # esp_lcd_lt8912b and Adafruit's Adafruit_LT8912B under the Apache License,
 # Version 2.0. See NOTICE and LICENSES/Apache-2.0.txt.
