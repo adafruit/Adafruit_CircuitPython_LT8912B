@@ -42,3 +42,12 @@ Use CEA-861 VIC 1 / VESA DMT 640x480 timings for a low-bandwidth test mode.
 .. literalinclude:: ../examples/lt8912b_640x480.py
     :caption: examples/lt8912b_640x480.py
     :linenos:
+
+HDMI audio tone
+---------------
+
+Show color bars and play a 440 Hz tone through the monitor's speakers.
+
+.. literalinclude:: ../examples/lt8912b_hdmi_audio_tone.py
+    :caption: examples/lt8912b_hdmi_audio_tone.py
+    :linenos:

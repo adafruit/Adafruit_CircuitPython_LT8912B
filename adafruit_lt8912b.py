@@ -129,6 +129,14 @@ _AVI_AUDIO_OFF = (
     b"\x34\x52"  # Disable I2S input
     b"\x3c\x40"  # Disable audio/null packets
 )
+# Espressif esp_lcd_lt8912b values.
+_AVI_AUDIO_ON = (
+    b"\x3c\x41"  # Enable audio/null packets
+    b"\x06\x08"  # Start audio acquisition
+    b"\x07\xf0"  # Enable audio clock regeneration
+    b"\x34\xd2"  # Enable I2S input
+    b"\x0f\x2b"  # 48 kHz
+)
 
 
 class LT8912B(mipidsi.Display):
@@ -251,6 +259,7 @@ class LT8912B(mipidsi.Display):
         self._reset_receiver()
         self._write(self._main, _MAIN_LVDS_BYPASS)
         self._write(self._avi, _AVI_AUDIO_OFF)
+        self._audio_enabled = False
         self._write_bit(self._main, _MAIN_HDMI_MODE, 0, False)  # DVI
         self._write_bit(self._main, _MAIN_TX_CONTROL, 1, True)
 
@@ -309,6 +318,34 @@ class LT8912B(mipidsi.Display):
     def hot_plug_detected(self):
         """True when the HDMI hot-plug detect line is high."""
         return bool(self._read_byte(self._main, _MAIN_HPD_STATUS) & 0x80)
+
+    @property
+    def audio_enabled(self):
+        """True when the bridge sends I2S audio over HDMI. It is False after the
+        constructor runs.
+
+        Setting it True also switches the output from DVI to HDMI mode. Setting
+        it False stops the audio and leaves the output in HDMI mode.
+
+        Feed the bridge's BCK, LRC and DIN inputs with I2S audio, such as from
+        `audiobusio.I2SOut`. No MCLK is needed. The bridge plays only 48 kHz
+        audio, so convert MP3 and WAV files to 48 kHz first. Other rates are
+        silent.
+
+        Turn the adapter's DDC switch off. With it on, some monitors answer at
+        the same I2C address as the bridge's audio registers. Use a monitor
+        input with audio: DVI inputs carry no sound.
+        """
+        return self._audio_enabled
+
+    @audio_enabled.setter
+    def audio_enabled(self, value):
+        if value:
+            self._write_bit(self._main, _MAIN_HDMI_MODE, 0, True)
+            self._write(self._avi, _AVI_AUDIO_ON)
+        else:
+            self._write(self._avi, _AVI_AUDIO_OFF)
+        self._audio_enabled = bool(value)
 
     def _seed_output_clock(self, pixel_clock_frequency):
         """Start the output clock generator (DDS) at the pixel clock."""
