@@ -136,7 +136,8 @@ See ``examples/lt8912b_simpletest.py`` for a fixed-timing color-bar example,
 ``examples/lt8912b_720p.py`` and ``examples/lt8912b_1080p30.py`` for standard
 CEA-861 modes, ``examples/lt8912b_640x480.py`` for a low-bandwidth mode, and
 ``examples/lt8912b_edid.py`` for one that uses the monitor's preferred EDID
-timing.
+timing. ``examples/lt8912b_hdmi_audio_tone.py`` plays a tone through the
+monitor's speakers.
 
 Bridge Control
 ==============
@@ -145,6 +146,11 @@ The constructor resets and configures the bridge. It pulses the ``reset`` pin
 when one is given and otherwise sends a software reset.
 
 ``hot_plug_detected`` is True when a monitor is connected.
+
+Set ``audio_enabled`` to True to send I2S audio over HDMI. Wire the board's
+I2S output to the adapter's BCK, LRC and DIN pins and play 48 kHz audio with
+``audiobusio.I2SOut``. Turn the adapter's DDC switch off, and use a monitor
+input with audio.
 
 EDID Timing
 ===========
